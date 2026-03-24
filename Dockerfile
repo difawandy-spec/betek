@@ -1,6 +1,6 @@
 FROM python:3.11-slim
 
-RUN apt update && apt install -y ffmpeg
+RUN apt update && apt install -y ffmpeg mediainfo
 
 WORKDIR /app
 
