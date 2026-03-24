@@ -3,6 +3,10 @@ import requests
 from telethon import TelegramClient, events
 from telethon.tl.types import DocumentAttributeVideo
 
+# =========================
+# CONFIG
+# =========================
+
 API_TT = "https://tikwm.com/api/"
 
 api_id = int(os.getenv("API_ID"))
@@ -11,12 +15,14 @@ bot_token = os.getenv("BOT_TOKEN")
 
 client = TelegramClient("bot", api_id, api_hash).start(bot_token=bot_token)
 
+HEADERS = {
+    "User-Agent": "Mozilla/5.0"
+}
+
 BASE = os.path.dirname(os.path.abspath(__file__))
 DOWNLOAD_DIR = os.path.join(BASE, "downloads")
 
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
-
-HEADERS = {"User-Agent": "Mozilla/5.0"}
 
 
 # =========================
@@ -25,7 +31,7 @@ HEADERS = {"User-Agent": "Mozilla/5.0"}
 
 def download_file(url, path):
 
-    r = requests.get(url, headers=HEADERS, stream=True)
+    r = requests.get(url, headers=HEADERS, stream=True, timeout=60)
 
     with open(path, "wb") as f:
         for chunk in r.iter_content(1024):
@@ -39,9 +45,8 @@ def download_file(url, path):
 
 def get_tiktok(url):
 
-    r = requests.get(API_TT, params={"url": url}, headers=HEADERS)
-
     try:
+        r = requests.get(API_TT, params={"url": url}, headers=HEADERS, timeout=30)
         return r.json()["data"]
     except:
         return None
@@ -54,7 +59,7 @@ async def handle_tiktok(event, url):
     data = get_tiktok(url)
 
     if not data:
-        await event.reply("❌ Tidak bisa mengambil video")
+        await event.reply("❌ Gagal mengambil video")
         return
 
     if data.get("images"):
@@ -99,11 +104,12 @@ async def handle_tiktok(event, url):
 
 def get_x_media(url):
 
-    api = url.replace("x.com", "api.vxtwitter.com").replace("twitter.com", "api.vxtwitter.com")
-
-    r = requests.get(api)
+    api = url.replace("x.com", "api.vxtwitter.com").replace(
+        "twitter.com", "api.vxtwitter.com"
+    )
 
     try:
+        r = requests.get(api, headers=HEADERS, timeout=30)
         return r.json()
     except:
         return None
@@ -113,7 +119,11 @@ async def handle_x(event, url):
 
     await event.reply("🔎 Fetching X media...")
 
-    data = get_x_media(url)
+    try:
+        data = get_x_media(url)
+    except:
+        await event.reply("❌ Error mengambil media")
+        return
 
     if not data:
         await event.reply("❌ Media tidak ditemukan")
@@ -135,7 +145,7 @@ async def handle_x(event, url):
 
         elif m["type"] == "video":
 
-            path = os.path.join(DOWNLOAD_DIR, f"x_video.mp4")
+            path = os.path.join(DOWNLOAD_DIR, "x_video.mp4")
 
             download_file(m["url"], path)
 
@@ -156,7 +166,7 @@ async def start(event):
 
     await event.reply(
         "🤖 Downloader Bot\n\n"
-        "Commands:\n"
+        "Commands:\n\n"
         "/tt <link> → download TikTok\n"
         "/x <link> → download X/Twitter"
     )
