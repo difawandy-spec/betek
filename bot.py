@@ -2,7 +2,8 @@ import os
 import requests
 import subprocess
 import random
-import time
+import re
+from urllib.parse import urlparse
 from telethon import TelegramClient, events
 from telethon.tl.types import DocumentAttributeVideo
 
@@ -24,9 +25,11 @@ BASE = os.path.dirname(os.path.abspath(__file__))
 
 VIDEO_DIR = os.path.join(BASE, "downloads", "videos")
 IMAGE_DIR = os.path.join(BASE, "downloads", "images")
+XNXX_DIR = os.path.join(BASE, "downloads", "xnxx")
 
 os.makedirs(VIDEO_DIR, exist_ok=True)
 os.makedirs(IMAGE_DIR, exist_ok=True)
+os.makedirs(XNXX_DIR, exist_ok=True)
 
 # =========================
 # USER AGENTS
@@ -110,7 +113,6 @@ async def handle_tt(event, url):
 
         await client.send_file(event.chat_id, path)
 
-
 # =========================
 # X / TWITTER
 # =========================
@@ -179,41 +181,94 @@ async def handle_x(event, url):
         await client.send_file(event.chat_id, files)
 
 # =========================
+# XNXX DOWNLOADER
+# =========================
+
+def extract_title_from_url(url):
+    path = urlparse(url).path
+    return path.split("/")[-1]
+
+
+def get_m3u8(url):
+
+    try:
+        r = requests.get(url, headers=headers(), timeout=15)
+        html = r.text
+
+        match = re.search(r'https://[^"\']+\.m3u8[^"\']*', html)
+
+        if match:
+            return match.group(0)
+
+        return None
+
+    except:
+        return None
+
+
+async def handle_xn(event, url):
+
+    await event.reply("🔎 Mencari m3u8...")
+
+    m3u8 = get_m3u8(url)
+
+    if not m3u8:
+        await event.reply("❌ m3u8 tidak ditemukan")
+        return
+
+    filename = extract_title_from_url(url)
+
+    output = os.path.join(XNXX_DIR, filename + ".mp4")
+
+    await event.reply("📥 Downloading video...")
+
+    subprocess.run([
+        "ffmpeg",
+        "-i", m3u8,
+        "-c", "copy",
+        "-bsf:a", "aac_adtstoasc",
+        output
+    ])
+
+    await client.send_file(event.chat_id, output)
+
+# =========================
 # COMMANDS
 # =========================
 
-@client.on(events.NewMessage(pattern="/start"))
+@client.on(events.NewMessage(pattern=r"^/start"))
 async def start(event):
 
     await event.reply(
         "Downloader Bot\n\n"
         "/tt <link> → TikTok\n"
-        "/x <link> → X/Twitter"
+        "/x <link> → X/Twitter\n"
+        "/xn <link> → XNXX"
     )
 
 
-@client.on(events.NewMessage(pattern="/tt"))
+@client.on(events.NewMessage(pattern=r"^/tt "))
 async def tt(event):
 
-    try:
-        url = event.message.text.split(" ",1)[1]
-    except:
-        await event.reply("Format:\n/tt link")
-        return
+    url = event.message.text.split(" ",1)[1]
 
     await handle_tt(event, url)
 
 
-@client.on(events.NewMessage(pattern="/x"))
+@client.on(events.NewMessage(pattern=r"^/x "))
 async def x(event):
 
-    try:
-        url = event.message.text.split(" ",1)[1]
-    except:
-        await event.reply("Format:\n/x link")
-        return
+    url = event.message.text.split(" ",1)[1]
 
     await handle_x(event, url)
+
+
+@client.on(events.NewMessage(pattern=r"^/xn "))
+async def xn(event):
+
+    url = event.message.text.split(" ",1)[1]
+
+    await handle_xn(event, url)
 
 
 print("Bot running...")
