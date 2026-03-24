@@ -38,14 +38,13 @@ USER_AGENTS = [
 "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
 "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
 "Mozilla/5.0 (X11; Linux x86_64)",
-"Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)",
-"Mozilla/5.0 (Linux; Android 13)"
+"Mozilla/5.0 (Linux; Android 13)",
+"Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)"
 ]
 
 def headers():
     return {
-        "User-Agent": random.choice(USER_AGENTS),
-        "Referer": "https://x.com/"
+        "User-Agent": random.choice(USER_AGENTS)
     }
 
 # =========================
@@ -71,9 +70,12 @@ def get_tiktok(url):
         r = requests.get(
             "https://tikwm.com/api/",
             params={"url": url},
-            headers=headers()
+            headers=headers(),
+            timeout=30
         )
+
         return r.json()["data"]
+
     except:
         return None
 
@@ -85,7 +87,7 @@ async def handle_tt(event, url):
     data = get_tiktok(url)
 
     if not data:
-        await event.reply("❌ Tidak bisa mengambil video")
+        await event.reply("❌ Video tidak ditemukan")
         return
 
     if data.get("images"):
@@ -118,10 +120,12 @@ async def handle_tt(event, url):
 
 def get_x_data(url):
 
-    api = url.replace("x.com", "api.vxtwitter.com")
+    api = url.replace("x.com", "api.vxtwitter.com").replace(
+        "twitter.com", "api.vxtwitter.com"
+    )
 
     try:
-        r = requests.get(api, headers=headers())
+        r = requests.get(api, headers=headers(), timeout=30)
         return r.json()
     except:
         return None
@@ -185,7 +189,6 @@ async def handle_x(event, url):
 def extract_title(url):
 
     path = urlparse(url).path
-
     return path.split("/")[-1]
 
 
@@ -200,17 +203,21 @@ def get_m3u8(url):
         match = re.search(r'https://[^"\']+\.m3u8[^"\']*', html)
 
         if match:
-
             return match.group(0)
 
         return None
 
     except:
-
         return None
 
 
 async def handle_xn(event, url):
+
+    if "video" not in url:
+
+        await event.reply("❌ Link harus berupa halaman video XNXX")
+
+        return
 
     await event.reply("🔎 Mencari stream video...")
 
@@ -244,49 +251,37 @@ async def handle_xn(event, url):
 # COMMANDS
 # =========================
 
-@client.on(events.NewMessage(pattern="/start"))
+@client.on(events.NewMessage(pattern=r"^/start"))
 async def start(event):
 
     await event.reply(
         "Downloader Bot\n\n"
         "/tt <link> → TikTok\n"
-        "/x <link> → X/Twitter\n"
+        "/x <link> → X / Twitter\n"
         "/xn <link> → XNXX"
     )
 
 
-@client.on(events.NewMessage(pattern="/tt"))
+@client.on(events.NewMessage(pattern=r"^/tt "))
 async def tt(event):
 
-    try:
-        url = event.message.text.split(" ",1)[1]
-    except:
-        await event.reply("Format:\n/tt link")
-        return
+    url = event.message.text.split(" ",1)[1]
 
     await handle_tt(event, url)
 
 
-@client.on(events.NewMessage(pattern="/x"))
+@client.on(events.NewMessage(pattern=r"^/x "))
 async def x(event):
 
-    try:
-        url = event.message.text.split(" ",1)[1]
-    except:
-        await event.reply("Format:\n/x link")
-        return
+    url = event.message.text.split(" ",1)[1]
 
     await handle_x(event, url)
 
 
-@client.on(events.NewMessage(pattern="/xn"))
+@client.on(events.NewMessage(pattern=r"^/xn "))
 async def xn(event):
 
-    try:
-        url = event.message.text.split(" ",1)[1]
-    except:
-        await event.reply("Format:\n/xn link")
-        return
+    url = event.message.text.split(" ",1)[1]
 
     await handle_xn(event, url)
 
