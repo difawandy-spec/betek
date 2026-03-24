@@ -5,9 +5,9 @@ from telethon.tl.types import DocumentAttributeVideo
 
 API = "https://tikwm.com/api/"
 
-api_id = 1916950
-api_hash = "9e268fee501ad809e4f5f598adcb970c"
-bot_token = "7990971853:AAEcjoTqHNd_T-pc747-47AuBHCN1CXt7A8"
+api_id = int(os.getenv("API_ID"))
+api_hash = os.getenv("API_HASH")
+bot_token = os.getenv("BOT_TOKEN")
 
 client = TelegramClient("bot", api_id, api_hash).start(bot_token=bot_token)
 
@@ -46,11 +46,9 @@ async def handle_download(event, data):
 
         await event.reply("📸 Photo post detected...")
 
-        images = data["images"]
-
         files = []
 
-        for i, img in enumerate(images):
+        for i, img in enumerate(data["images"]):
 
             path = os.path.join(DOWNLOAD_DIR, f"{data['id']}_{i}.jpg")
 
@@ -89,7 +87,7 @@ async def start(event):
 
     await event.reply(
         "🤖 TikTok Downloader Bot\n\n"
-        "Send TikTok URL to download video or photos."
+        "Kirim link TikTok untuk download video atau foto."
     )
 
 
@@ -105,7 +103,7 @@ async def handler(event):
         data = get_data(text)
 
         if not data:
-            await event.reply("❌ Failed to fetch video")
+            await event.reply("❌ Gagal mengambil video")
             return
 
         await handle_download(event, data)
