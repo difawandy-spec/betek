@@ -6,7 +6,6 @@ import re
 from urllib.parse import urlparse
 from telethon import TelegramClient, events
 from telethon.tl.types import DocumentAttributeVideo
-from pymediainfo import MediaInfo
 
 # =========================
 # TELEGRAM CONFIG
@@ -182,7 +181,7 @@ async def handle_x(event, url):
         await client.send_file(event.chat_id, files)
 
 # =========================
-# XNXX FUNCTIONS
+# XNXX DOWNLOADER
 # =========================
 
 def extract_title_from_url(url):
@@ -193,9 +192,7 @@ def extract_title_from_url(url):
 def get_m3u8(url):
 
     try:
-
         r = requests.get(url, headers=headers(), timeout=15)
-
         html = r.text
 
         match = re.search(r'https://[^"\']+\.m3u8[^"\']*', html)
@@ -207,40 +204,6 @@ def get_m3u8(url):
 
     except:
         return None
-
-
-def generate_thumbnail(video_path):
-
-    thumb = video_path + ".jpg"
-
-    subprocess.run([
-        "ffmpeg",
-        "-y",
-        "-ss","00:00:03",
-        "-i",video_path,
-        "-vframes","1",
-        "-q:v","2",
-        thumb
-    ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-
-    return thumb
-
-
-def get_video_metadata(video_path):
-
-    media_info = MediaInfo.parse(video_path)
-
-    for track in media_info.tracks:
-
-        if track.track_type == "Video":
-
-            duration = int(track.duration / 1000)
-            width = track.width
-            height = track.height
-
-            return duration, width, height
-
-    return 0,0,0
 
 
 async def handle_xn(event, url):
@@ -267,24 +230,7 @@ async def handle_xn(event, url):
         output
     ])
 
-    duration,width,height = get_video_metadata(output)
-
-    thumb = generate_thumbnail(output)
-
-    await client.send_file(
-        event.chat_id,
-        output,
-        thumb=thumb,
-        supports_streaming=True,
-        attributes=[
-            DocumentAttributeVideo(
-                duration=duration,
-                w=width,
-                h=height,
-                supports_streaming=True
-            )
-        ]
-    )
+    await client.send_file(event.chat_id, output)
 
 # =========================
 # COMMANDS
