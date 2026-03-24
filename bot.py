@@ -6,6 +6,7 @@ import re
 from urllib.parse import urlparse
 from telethon import TelegramClient, events
 from telethon.tl.types import DocumentAttributeVideo
+from pymediainfo import MediaInfo
 
 # =========================
 # TELEGRAM CONFIG
@@ -32,7 +33,7 @@ os.makedirs(IMAGE_DIR, exist_ok=True)
 os.makedirs(XNXX_DIR, exist_ok=True)
 
 # =========================
-# USER AGENTS
+# USER AGENT
 # =========================
 
 USER_AGENTS = [
@@ -46,7 +47,7 @@ USER_AGENTS = [
 def headers():
     return {
         "User-Agent": random.choice(USER_AGENTS),
-        "Referer": "https://x.com/"
+        "Referer": "https://www.xnxx.com/"
     }
 
 # =========================
@@ -181,56 +182,125 @@ async def handle_x(event, url):
         await client.send_file(event.chat_id, files)
 
 # =========================
-# XNXX DOWNLOADER
+# XNXX FUNCTIONS
 # =========================
 
-def extract_title_from_url(url):
+def extract_title(url):
+
     path = urlparse(url).path
     return path.split("/")[-1]
 
 
-def get_m3u8(url):
+def get_video_stream(url):
 
     try:
-        r = requests.get(url, headers=headers(), timeout=15)
+
+        r = requests.get(url, headers=headers(), timeout=20)
+
         html = r.text
 
-        match = re.search(r'https://[^"\']+\.m3u8[^"\']*', html)
+        # HLS
+        m3u8 = re.search(r'https://[^"\']+\.m3u8[^"\']*', html)
 
-        if match:
-            return match.group(0)
+        if m3u8:
+            return ("m3u8", m3u8.group(0))
 
-        return None
+        # MP4 fallback
+        mp4 = re.search(r'https://[^"\']+\.mp4[^"\']*', html)
+
+        if mp4:
+            return ("mp4", mp4.group(0))
+
+        return (None,None)
 
     except:
-        return None
+        return (None,None)
+
+
+def generate_thumbnail(video):
+
+    thumb = video + ".jpg"
+
+    subprocess.run([
+        "ffmpeg",
+        "-y",
+        "-ss","00:00:03",
+        "-i",video,
+        "-vframes","1",
+        "-q:v","2",
+        thumb
+    ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    return thumb
+
+
+def get_video_metadata(video):
+
+    media_info = MediaInfo.parse(video)
+
+    for track in media_info.tracks:
+
+        if track.track_type == "Video":
+
+            duration = int(track.duration / 1000)
+            width = track.width
+            height = track.height
+
+            return duration,width,height
+
+    return 0,0,0
 
 
 async def handle_xn(event, url):
 
-    await event.reply("🔎 Mencari m3u8...")
+    await event.reply("🔎 Mencari stream video...")
 
-    m3u8 = get_m3u8(url)
+    stream_type, stream_url = get_video_stream(url)
 
-    if not m3u8:
-        await event.reply("❌ m3u8 tidak ditemukan")
+    if not stream_url:
+        await event.reply("❌ Stream tidak ditemukan")
         return
 
-    filename = extract_title_from_url(url)
+    filename = extract_title(url)
 
     output = os.path.join(XNXX_DIR, filename + ".mp4")
 
     await event.reply("📥 Downloading video...")
 
-    subprocess.run([
-        "ffmpeg",
-        "-i", m3u8,
-        "-c", "copy",
-        "-bsf:a", "aac_adtstoasc",
-        output
-    ])
+    if stream_type == "m3u8":
 
-    await client.send_file(event.chat_id, output)
+        subprocess.run([
+            "ffmpeg",
+            "-loglevel","error",
+            "-y",
+            "-i",stream_url,
+            "-c","copy",
+            "-bsf:a","aac_adtstoasc",
+            output
+        ])
+
+    else:
+
+        download_file(stream_url, output)
+
+    duration,width,height = get_video_metadata(output)
+
+    thumb = generate_thumbnail(output)
+
+    await client.send_file(
+        event.chat_id,
+        output,
+        thumb=thumb,
+        supports_streaming=True,
+        attributes=[
+            DocumentAttributeVideo(
+                duration=duration,
+                w=width,
+                h=height,
+                supports_streaming=True
+            )
+        ]
+    )
 
 # =========================
 # COMMANDS
@@ -251,7 +321,6 @@ async def start(event):
 async def tt(event):
 
     url = event.message.text.split(" ",1)[1]
-
     await handle_tt(event, url)
 
 
@@ -259,7 +328,6 @@ async def tt(event):
 async def x(event):
 
     url = event.message.text.split(" ",1)[1]
-
     await handle_x(event, url)
 
 
@@ -267,7 +335,6 @@ async def x(event):
 async def xn(event):
 
     url = event.message.text.split(" ",1)[1]
-
     await handle_xn(event, url)
 
 
